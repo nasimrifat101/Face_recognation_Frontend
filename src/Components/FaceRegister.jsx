@@ -125,6 +125,7 @@ const FaceRegister = () => {
       setMessage("Student registered successfully!");
       setName("");
       setRoll("");
+      setMessage("");
     } catch (error) {
       console.error(error);
       setMessage("Registration failed. Please try again.");
