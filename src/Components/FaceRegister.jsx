@@ -71,11 +71,11 @@ const FaceRegister = () => {
         }
 
         faceDataArray.push(predictions[0].landmarks);
-        
+
         // Update progress bar
         setCaptureProgress(((i + 1) / numCaptures) * 100);
 
-        await new Promise(resolve => setTimeout(resolve, 300)); // Optional delay between captures
+        await new Promise((resolve) => setTimeout(resolve, 300)); // Optional delay between captures
       }
 
       if (faceDataArray.length === 0) {
@@ -83,10 +83,19 @@ const FaceRegister = () => {
         return;
       }
 
-      const averagedLandmarks = faceDataArray.reduce((acc, curr) => 
-        acc.map((point, idx) => [point[0] + curr[idx][0], point[1] + curr[idx][1]]),
-        Array(faceDataArray[0].length).fill([0, 0])
-      ).map(point => [point[0] / faceDataArray.length, point[1] / faceDataArray.length]);
+      const averagedLandmarks = faceDataArray
+        .reduce(
+          (acc, curr) =>
+            acc.map((point, idx) => [
+              point[0] + curr[idx][0],
+              point[1] + curr[idx][1],
+            ]),
+          Array(faceDataArray[0].length).fill([0, 0])
+        )
+        .map((point) => [
+          point[0] / faceDataArray.length,
+          point[1] / faceDataArray.length,
+        ]);
 
       const formData = new FormData();
       formData.append("image", screenshotData.split(",")[1]);
@@ -101,8 +110,10 @@ const FaceRegister = () => {
       }
 
       const imageUrl = imgBBResponse.data.data.url;
-      const date=new Date();
-      const formattedDate = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
+      const date = new Date();
+      const formattedDate = `${date.getDate()}-${
+        date.getMonth() + 1
+      }-${date.getFullYear()}`;
       const time = `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
       const dateTime = `${formattedDate} ${time}`;
 
@@ -111,7 +122,10 @@ const FaceRegister = () => {
         roll,
         name,
         faceData: averagedLandmarks,
-        dateTime
+        status: {
+          date: dateTime,
+          present: false,
+        },
       });
 
       await axios.post("http://localhost:5000/api/register", {
@@ -119,13 +133,12 @@ const FaceRegister = () => {
         name,
         faceData: averagedLandmarks,
         profileImage: imageUrl,
-        dateTime
+        dateTime,
       });
 
       setMessage("Student registered successfully!");
       setName("");
       setRoll("");
-      setMessage("");
     } catch (error) {
       console.error(error);
       setMessage("Registration failed. Please try again.");
@@ -172,7 +185,7 @@ const FaceRegister = () => {
           {isLoading ? "Processing..." : "Register Face"}
         </button>
       )}
-      
+
       {/* Progress Bar */}
       {isLoading && (
         <div className="w-full mt-4">
@@ -184,7 +197,7 @@ const FaceRegister = () => {
           </div>
         </div>
       )}
-      
+
       {/* Feedback Message */}
       {message && (
         <p
