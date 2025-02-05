@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import FaceRecognize from "../components/FaceRecognize";
 import PresentList from "../Components/PresentList";
 import FaceRegister from "../Components/FaceRegister";
+import FaceRecognize from "../Components/FaceRecognize";
 
 
 

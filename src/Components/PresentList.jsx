@@ -5,6 +5,14 @@ const PresentList = () => {
   const [presentStudents, setPresentStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const TodaysDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return   `${day}-${month}-${year}`;
+  };
+
   // Fetch initial present list data
   const fetchPresentStudents = async () => {
     try {
@@ -27,7 +35,10 @@ const PresentList = () => {
 
   return (
     <div className="p-8">
+     <span className="flex justify-between"> 
       <h1 className="text-3xl font-bold mb-6">Today's Present List</h1>
+      <p className="text-2xl font-bold">{TodaysDate()}</p>
+     </span>
 
       {loading ? (
         <p className="text-lg">Loading...</p>
@@ -37,7 +48,7 @@ const PresentList = () => {
         <table className="w-full bg-white border border-gray-200 shadow-md rounded-xl">
           <thead className="bg-blue-500 text-white">
             <tr>
-              <th className="py-3 px-6 text-left">Image</th>
+              {/* <th className="py-3 px-6 text-left">Image</th> */}
               <th className="py-3 px-6 text-left">Name</th>
               <th className="py-3 px-6 text-left">Roll Number</th>
               <th className="py-3 px-6 text-left">Present</th>
@@ -47,13 +58,13 @@ const PresentList = () => {
           <tbody>
             {presentStudents.map((student) => (
               <tr key={student.roll} className="hover:bg-gray-100 border-b">
-                <td className="py-3 px-6">
+                {/* <td className="py-3 px-6">
                   <img
                     src={student.profileImage} // Use profileImage field for image
                     alt={student.name}
                     className="w-12 h-12 rounded-full"
                   />
-                </td>
+                </td> */}
                 <td className="py-3 px-6 font-semibold">{student.name}</td>
                 <td className="py-3 px-6">{student.roll}</td>
                 <td className="py-3 px-6">

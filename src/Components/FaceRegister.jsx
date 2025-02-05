@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
-import * as tf from "@tensorflow/tfjs";
-import * as blazeface from "@tensorflow-models/blazeface";
+import * as faceapi from "face-api.js";
 import axios from "axios";
 
 const FaceRegister = () => {
@@ -10,129 +9,88 @@ const FaceRegister = () => {
   const [roll, setRoll] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [model, setModel] = useState(null);
-  const [captureProgress, setCaptureProgress] = useState(0); // For progress bar
-  const [isModelLoading, setIsModelLoading] = useState(false); // Model loading state
+  const [captureProgress, setCaptureProgress] = useState(0);
 
-  // Load the BlazeFace model
   useEffect(() => {
-    const loadModel = async () => {
-      setIsModelLoading(true);
+    const loadModels = async () => {
       try {
-        const loadedModel = await blazeface.load();
-        setModel(loadedModel);
-        console.log("BlazeFace model loaded successfully.");
+        await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
+        await faceapi.nets.faceLandmark68Net.loadFromUri("/models");
+        await faceapi.nets.faceRecognitionNet.loadFromUri("/models");
+        console.log("Face API models loaded successfully.");
       } catch (error) {
-        console.error("Error loading BlazeFace model:", error);
-        setMessage("Error loading model. Please try again later.");
-      } finally {
-        setIsModelLoading(false);
+        console.error("Error loading face-api models:", error);
+        setMessage("Error loading models. Please try again later.");
       }
     };
-
-    loadModel();
+    loadModels();
   }, []);
 
-  const captureMultipleFaces = async () => {
-    if (!model) {
-      alert("Model is still loading...");
-      return;
-    }
-
+  const captureAndRegister = async () => {
     if (!name || !roll) {
-      alert("Please fill in both Name and Roll Number fields.");
+      alert("Please fill in the name and roll fields.");
       return;
     }
 
     setIsLoading(true);
-    setCaptureProgress(0); // Reset progress bar
+    setCaptureProgress(0);
     const faceDataArray = [];
     const numCaptures = 5;
-    let screenshotData = null;
 
     try {
       for (let i = 0; i < numCaptures; i++) {
-        const screenshot = webcamRef.current.getScreenshot();
-        if (!screenshot) {
+        const screenshotCanvas = webcamRef.current.getCanvas();
+        if (!screenshotCanvas) {
           alert("Unable to capture image. Please try again.");
+          setIsLoading(false);
           return;
         }
 
-        if (i === 0) screenshotData = screenshot;
+        const detections = await faceapi
+          .detectSingleFace(screenshotCanvas, new faceapi.TinyFaceDetectorOptions())
+          .withFaceLandmarks()
+          .withFaceDescriptor();
 
-        const img = new Image();
-        img.src = screenshot;
-        await img.decode();
-
-        const predictions = await model.estimateFaces(img);
-        if (predictions.length === 0) {
-          console.warn(`No face detected in capture ${i + 1}`);
+        if (!detections) {
+          alert("No face detected. Please ensure your face is visible.");
           continue;
         }
 
-        faceDataArray.push(predictions[0].landmarks);
-
-        // Update progress bar
+        faceDataArray.push(detections.descriptor);
         setCaptureProgress(((i + 1) / numCaptures) * 100);
-
-        await new Promise((resolve) => setTimeout(resolve, 300)); // Optional delay between captures
+        await new Promise((resolve) => setTimeout(resolve, 300)); // Delay between captures
       }
 
       if (faceDataArray.length === 0) {
-        alert("No face detected in any capture. Please try again.");
+        alert("No face embeddings captured. Please try again.");
+        setIsLoading(false);
         return;
       }
 
-      const averagedLandmarks = faceDataArray
-        .reduce(
-          (acc, curr) =>
-            acc.map((point, idx) => [
-              point[0] + curr[idx][0],
-              point[1] + curr[idx][1],
-            ]),
-          Array(faceDataArray[0].length).fill([0, 0])
-        )
-        .map((point) => [
-          point[0] / faceDataArray.length,
-          point[1] / faceDataArray.length,
-        ]);
+      // Average the face descriptors
+      const averagedDescriptor = faceDataArray.reduce(
+        (acc, curr) => acc.map((val, idx) => val + curr[idx]),
+        Array(faceDataArray[0].length).fill(0)
+      ).map((val) => val / faceDataArray.length);
 
-      const formData = new FormData();
-      formData.append("image", screenshotData.split(",")[1]);
-
-      const imgBBResponse = await axios.post(
-        `https://api.imgbb.com/1/upload?key=ace89bb38fba53c4f34f8049ea6e58c9`,
-        formData
-      );
-
-      if (imgBBResponse.status !== 200) {
-        throw new Error("Failed to upload image to ImgBB");
-      }
-
-      const imageUrl = imgBBResponse.data.data.url;
       const date = new Date();
-      const formattedDate = `${date.getDate()}-${
-        date.getMonth() + 1
-      }-${date.getFullYear()}`;
+      const formattedDate = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
       const time = `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
       const dateTime = `${formattedDate} ${time}`;
 
       console.log({
-        profileImage: imageUrl,
         roll,
         name,
-        faceData: averagedLandmarks,
-        status: {
-          date: dateTime,
-          present: false,
-        },
-      });
+        faceEmbedding: averagedDescriptor,
+        profileimage:
+        dateTime,
+      })
 
+      // Send the data to the backend
       await axios.post("http://localhost:5000/api/register", {
         roll,
         name,
-        faceData: averagedLandmarks,
-        profileImage: imageUrl,
+        faceEmbedding: averagedDescriptor,
         dateTime,
       });
 
@@ -140,11 +98,11 @@ const FaceRegister = () => {
       setName("");
       setRoll("");
     } catch (error) {
-      console.error(error);
+      console.error("Error during registration:", error);
       setMessage("Registration failed. Please try again.");
     } finally {
       setIsLoading(false);
-      setCaptureProgress(0); // Reset progress bar
+      setCaptureProgress(0);
     }
   };
 
@@ -157,7 +115,7 @@ const FaceRegister = () => {
         value={roll}
         onChange={(e) => setRoll(e.target.value)}
         className="mb-4 p-2 border rounded w-full"
-        disabled={isModelLoading || isLoading}
+        disabled={isLoading}
       />
       <input
         type="text"
@@ -165,28 +123,22 @@ const FaceRegister = () => {
         value={name}
         onChange={(e) => setName(e.target.value)}
         className="mb-4 p-2 border rounded w-full"
-        disabled={isModelLoading || isLoading}
+        disabled={isLoading}
       />
       <Webcam
         audio={false}
         ref={webcamRef}
         screenshotFormat="image/jpeg"
         className="mb-4 rounded shadow"
-        videoConstraints={{ facingMode: "user" }}
       />
-      {isModelLoading ? (
-        <div className="loader"></div> // Custom loader or spinner
-      ) : (
-        <button
-          onClick={captureMultipleFaces}
-          disabled={isLoading}
-          className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-400"
-        >
-          {isLoading ? "Processing..." : "Register Face"}
-        </button>
-      )}
+      <button
+        onClick={captureAndRegister}
+        disabled={isLoading}
+        className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-400"
+      >
+        {isLoading ? "Processing..." : "Register Face"}
+      </button>
 
-      {/* Progress Bar */}
       {isLoading && (
         <div className="w-full mt-4">
           <div className="h-2 bg-gray-200 rounded-full">
@@ -198,7 +150,6 @@ const FaceRegister = () => {
         </div>
       )}
 
-      {/* Feedback Message */}
       {message && (
         <p
           className={`mt-4 text-lg ${
